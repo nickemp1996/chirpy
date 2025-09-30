@@ -14,6 +14,8 @@ func main() {
 		Handler:      mux,
 	}
 
+	mux.Handle("/", http.FileServer(http.Dir(".")))
+
 	fmt.Println("Starting server on ", server.Addr)
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
