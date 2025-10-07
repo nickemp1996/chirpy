@@ -33,3 +33,13 @@ POST http://localhost:8080/api/validate_chirp
         {
         "body": "I really need a kerfuffle to go to bed sooner, Fornax!"
         }
+###
+POST http://localhost:8080/api/users
+        Content-Type: application/json
+
+        {
+        "email": "nickemp1996@gmail.com"
+        }
+###
+POST http://localhost:8080/admin/reset
+        Content-Type: text/html

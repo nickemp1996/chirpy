@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,10 +10,26 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"github.com/nickemp1996/chirpy/internal/database"
+
+	_ "github.com/lib/pq"
 )
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	queries        *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -37,8 +54,59 @@ func (cfg *apiConfig) getFileserverHits(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (cfg *apiConfig) resetFileserverHits(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(403)
+		return
+	}
 	cfg.fileserverHits.Store(0)
+	err := cfg.queries.DeleteUsers(r.Context())
+	if err != nil {
+		log.Printf("Error deleting users: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (cfg *apiConfig) addUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		// an error will be thrown if the JSON is invalid or has the wrong types
+		// any missing fields will simply have their values in the struct set to their zero value
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	dbUser, err := cfg.queries.CreateUser(r.Context(), params.Email)
+	if err != nil {
+		log.Printf("Error creating user: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	user := User{
+		ID:        dbUser.ID,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+		Email:     dbUser.Email,
+	}
+
+	err = respondWithJSON(w, 201, user)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader(500)
+		return
+	}
 }
 
 func readinessEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -134,8 +202,20 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		fmt.Printf("Failed to open connection to database: %v\n", err)
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+
 	mux := http.NewServeMux()
 	apiCfg := &apiConfig{}
+	apiCfg.queries = dbQueries
+	apiCfg.platform = platform
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -145,11 +225,12 @@ func main() {
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 	mux.HandleFunc("GET /api/healthz", readinessEndpoint)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.getFileserverHits)
-	mux.HandleFunc("POST /admin/reset", apiCfg.resetFileserverHits)
+	mux.HandleFunc("POST /admin/reset", apiCfg.reset)
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.addUser)
 
 	fmt.Println("Starting server on ", server.Addr)
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		fmt.Printf("Server failed: %v\n", err)
 		os.Exit(1)
