@@ -67,6 +67,12 @@ func (cfg *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		return
 	}
+	err = cfg.queries.DeleteChirps(r.Context())
+	if err != nil {
+		log.Printf("Error deleting chirps: %s", err)
+		w.WriteHeader(500)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 }
@@ -165,9 +171,10 @@ func replaceBadWords(body string) string {
 	return strings.Join(words, " ")
 }
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -181,18 +188,38 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	chirpParams := database.CreateChirpParams{
+		Body:   params.Body,
+		UserID: params.UserID,
+	}
+
 	if len(params.Body) > 140 {
 		err = respondWithError(w, 400, "chirp too long")
 	} else {
-		type returnVals struct {
-			// the key will be the name of struct field unless you give it an explicit JSON tag
-			CleanedBody string `json:"cleaned_body"`
-		}
-		respBody := returnVals{
-			CleanedBody: replaceBadWords(params.Body),
+		chirp, err1 := cfg.queries.CreateChirp(r.Context(), chirpParams)
+		if err1 != nil {
+			log.Printf("Error creating chirp: %s", err)
+			w.WriteHeader(500)
+			return
 		}
 
-		err = respondWithJSON(w, 200, respBody)
+		type returnVals struct {
+			// the key will be the name of struct field unless you give it an explicit JSON tag
+			ID        uuid.UUID `json:"id"`
+			CreatedAt time.Time `json:"created_at"`
+			UpdatedAt time.Time `json:"updated_at"`
+			Body      string    `json:"body"`
+			UserID    uuid.UUID `json:"user_id"`
+		}
+		respBody := returnVals{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      replaceBadWords(chirp.Body),
+			UserID:    chirp.UserID,
+		}
+
+		err = respondWithJSON(w, 201, respBody)
 	}
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
@@ -226,7 +253,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", readinessEndpoint)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.getFileserverHits)
 	mux.HandleFunc("POST /admin/reset", apiCfg.reset)
-	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+	mux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.addUser)
 
 	fmt.Println("Starting server on ", server.Addr)

@@ -1,37 +1,42 @@
-POST http://localhost:8080/api/validate_chirp
+POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "I had something interesting for breakfast"
+        "body": "I had something interesting for breakfast",
+        "user_id": "ecad0937-4c00-4d4a-b5f7-ffaef82e6483"
         }
 ###
-POST http://localhost:8080/api/validate_chirp
+POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+        "body": "lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "user_id": "ecad0937-4c00-4d4a-b5f7-ffaef82e6483"
         }
 ###
-POST http://localhost:8080/api/validate_chirp
+POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
         "body": "I hear Mastodon is better than Chirpy. sharbert I need to migrate",
+        "user_id": "ecad0937-4c00-4d4a-b5f7-ffaef82e6483",
         "extra": "this should be ignored"
         }
 ###
-POST http://localhost:8080/api/validate_chirp
+POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "I really need a kerfuffle to go to bed sooner, Fornax !"
+        "body": "I really need a kerfuffle to go to bed sooner, Fornax !",
+        "user_id": "ecad0937-4c00-4d4a-b5f7-ffaef82e6483"
         }
 ###
-POST http://localhost:8080/api/validate_chirp
+POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "I really need a kerfuffle to go to bed sooner, Fornax!"
+        "body": "I really need a kerfuffle to go to bed sooner, Fornax!",
+        "user_id": "ecad0937-4c00-4d4a-b5f7-ffaef82e6483"
         }
 ###
 POST http://localhost:8080/api/users
