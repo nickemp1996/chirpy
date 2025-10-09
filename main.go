@@ -26,6 +26,15 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type Chirp struct {
+	// the key will be the name of struct field unless you give it an explicit JSON tag
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	queries        *database.Queries
@@ -50,27 +59,24 @@ func (cfg *apiConfig) getFileserverHits(w http.ResponseWriter, r *http.Request) 
 							</html>`, cfg.fileserverHits.Load())
 	_, err := w.Write([]byte(message))
 	if err != nil {
-		fmt.Printf("Error writing response: %v", err)
+		log.Printf("Error writing response: %v", err)
 	}
 }
 
 func (cfg *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
 	if cfg.platform != "dev" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(403)
+		respondWithError(w, 403, "Access denied", nil)
 		return
 	}
 	cfg.fileserverHits.Store(0)
 	err := cfg.queries.DeleteUsers(r.Context())
 	if err != nil {
-		log.Printf("Error deleting users: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, "internal error", err)
 		return
 	}
 	err = cfg.queries.DeleteChirps(r.Context())
 	if err != nil {
-		log.Printf("Error deleting chirps: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, "internal error", err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -88,15 +94,13 @@ func (cfg *apiConfig) addUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// an error will be thrown if the JSON is invalid or has the wrong types
 		// any missing fields will simply have their values in the struct set to their zero value
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, "internal error", err)
 		return
 	}
 
 	dbUser, err := cfg.queries.CreateUser(r.Context(), params.Email)
 	if err != nil {
-		log.Printf("Error creating user: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, "internal error", err)
 		return
 	}
 
@@ -107,68 +111,7 @@ func (cfg *apiConfig) addUser(w http.ResponseWriter, r *http.Request) {
 		Email:     dbUser.Email,
 	}
 
-	err = respondWithJSON(w, 201, user)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-}
-
-func readinessEndpoint(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	message := "OK"
-	_, err := w.Write([]byte(message))
-	if err != nil {
-		fmt.Printf("Error writing response: %v", err)
-	}
-}
-
-func respondWithError(w http.ResponseWriter, code int, msg string) error {
-	type returnVals struct {
-		// the key will be the name of struct field unless you give it an explicit JSON tag
-		Error string `json:"error"`
-	}
-	respBody := returnVals{
-		Error: msg,
-	}
-	dat, err := json.Marshal(respBody)
-	if err != nil {
-		return err
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write(dat)
-
-	return nil
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error {
-	dat, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write(dat)
-
-	return nil
-}
-
-func replaceBadWords(body string) string {
-	badWords := []string{"kerfuffle", "sharbert", "fornax"}
-	words := strings.Split(body, " ")
-
-	for i, word := range words {
-		if slices.Contains(badWords, strings.ToLower(word)) {
-			words[i] = "****"
-		}
-	}
-
-	return strings.Join(words, " ")
+	respondWithJSON(w, 201, user)
 }
 
 func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
@@ -183,49 +126,145 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// an error will be thrown if the JSON is invalid or has the wrong types
 		// any missing fields will simply have their values in the struct set to their zero value
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, "internal error", err)
 		return
 	}
 
-	chirpParams := database.CreateChirpParams{
-		Body:   params.Body,
-		UserID: params.UserID,
-	}
-
 	if len(params.Body) > 140 {
-		err = respondWithError(w, 400, "chirp too long")
+		respondWithError(w, 400, "chirp too long", nil)
 	} else {
-		chirp, err1 := cfg.queries.CreateChirp(r.Context(), chirpParams)
+		chirpParams := database.CreateChirpParams{
+			Body:   replaceBadWords(params.Body),
+			UserID: params.UserID,
+		}
+
+		dbChirp, err1 := cfg.queries.CreateChirp(r.Context(), chirpParams)
 		if err1 != nil {
-			log.Printf("Error creating chirp: %s", err)
-			w.WriteHeader(500)
+			respondWithError(w, 500, "internal error", err)
 			return
 		}
 
-		type returnVals struct {
-			// the key will be the name of struct field unless you give it an explicit JSON tag
-			ID        uuid.UUID `json:"id"`
-			CreatedAt time.Time `json:"created_at"`
-			UpdatedAt time.Time `json:"updated_at"`
-			Body      string    `json:"body"`
-			UserID    uuid.UUID `json:"user_id"`
-		}
-		respBody := returnVals{
-			ID:        chirp.ID,
-			CreatedAt: chirp.CreatedAt,
-			UpdatedAt: chirp.UpdatedAt,
-			Body:      replaceBadWords(chirp.Body),
-			UserID:    chirp.UserID,
+		chirp := Chirp{
+			ID:        dbChirp.ID,
+			CreatedAt: dbChirp.CreatedAt,
+			UpdatedAt: dbChirp.UpdatedAt,
+			Body:      dbChirp.Body,
+			UserID:    dbChirp.UserID,
 		}
 
-		err = respondWithJSON(w, 201, respBody)
+		respondWithJSON(w, 201, chirp)
 	}
+}
+
+func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
+	dbChirps, err := cfg.queries.GetChirps(r.Context())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, 404, "no chirps found", err)
+			return
+		} else {
+			respondWithError(w, 500, "internal error", err)
+			return
+		}
+	}
+
+	chirps := make([]Chirp, len(dbChirps))
+	for i, dbChirp := range dbChirps {
+		chirps[i].ID = dbChirp.ID
+		chirps[i].CreatedAt = dbChirp.CreatedAt
+		chirps[i].UpdatedAt = dbChirp.UpdatedAt
+		chirps[i].Body = dbChirp.Body
+		chirps[i].UserID = dbChirp.UserID
+	}
+
+	respondWithJSON(w, 200, chirps)
+}
+
+func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		respondWithError(w, 404, "Invalid UUID format", err)
+		return
+	}
+
+	dbChirp, err := cfg.queries.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, 404, "chirp not found", err)
+			return
+		} else {
+			respondWithError(w, 500, "internal error", err)
+			return
+		}
+	}
+
+	chirp := Chirp{
+		ID:        dbChirp.ID,
+		CreatedAt: dbChirp.CreatedAt,
+		UpdatedAt: dbChirp.UpdatedAt,
+		Body:      dbChirp.Body,
+		UserID:    dbChirp.UserID,
+	}
+
+	respondWithJSON(w, 200, chirp)
+}
+
+func readinessEndpoint(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	message := "OK"
+	_, err := w.Write([]byte(message))
+	if err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
+	log.Printf("%s: %s", msg, err)
+
+	type returnVals struct {
+		// the key will be the name of struct field unless you give it an explicit JSON tag
+		Error string `json:"error"`
+	}
+	respBody := returnVals{
+		Error: msg,
+	}
+	dat, err := json.Marshal(respBody)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
 		w.WriteHeader(500)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+}
+
+func replaceBadWords(body string) string {
+	badWords := []string{"kerfuffle", "sharbert", "fornax"}
+	words := strings.Split(body, " ")
+
+	for i, word := range words {
+		if slices.Contains(badWords, strings.ToLower(word)) {
+			words[i] = "****"
+		}
+	}
+
+	return strings.Join(words, " ")
 }
 
 func main() {
@@ -254,6 +293,8 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.getFileserverHits)
 	mux.HandleFunc("POST /admin/reset", apiCfg.reset)
 	mux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
+	mux.HandleFunc("GET /api/chirps", apiCfg.getChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.addUser)
 
 	fmt.Println("Starting server on ", server.Addr)
