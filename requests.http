@@ -1,25 +1,25 @@
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
-
+        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiJkNDQwMTVlNC04ZjAzLTRlZmYtOTg3ZC1kODRkMmY5NWM0MjIiLCJleHAiOjE3NjA0OTk0NDcsImlhdCI6MTc2MDQ5NTg0N30.NkLM_FOzWhbCNhcvoQNdBx_EvGz1wE31P-Jj11oTdgs
+        
         {
-        "body": "I had something interesting for breakfast",
-        "user_id": "1be1bf88-35e4-4d25-be4e-440df7cb58b3"
+        "body": "I had something interesting for breakfast"
         }
 ###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
+        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiI0ZjQzN2EyNC04Y2YyLTQwMDQtYWNhNy1iYjg5NjkwNjI2MDIiLCJleHAiOjE3NjA0OTY2ODksImlhdCI6MTc2MDQ5MzA4OX0.AZxasTVE6iVi_EWbGM5HOVY9HChEFpICRLPKufQa3GE
 
         {
-        "body": "lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-        "user_id": "1be1bf88-35e4-4d25-be4e-440df7cb58b3"
+        "body": "lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
         }
 ###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
+        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiI0ZjQzN2EyNC04Y2YyLTQwMDQtYWNhNy1iYjg5NjkwNjI2MDIiLCJleHAiOjE3NjA0OTY2ODksImlhdCI6MTc2MDQ5MzA4OX0.AZxasTVE6iVi_EWbGM5HOVY9HChEFpICRLPKufQa3GE
 
         {
         "body": "I hear Mastodon is better than Chirpy. sharbert I need to migrate",
-        "user_id": "1be1bf88-35e4-4d25-be4e-440df7cb58b3",
         "extra": "this should be ignored"
         }
 ###
@@ -27,16 +27,14 @@ POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "I really need a kerfuffle to go to bed sooner, Fornax !",
-        "user_id": "1be1bf88-35e4-4d25-be4e-440df7cb58b3"
+        "body": "I really need a kerfuffle to go to bed sooner, Fornax !"
         }
 ###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
 
         {
-        "body": "I really need a kerfuffle to go to bed sooner, Fornax!",
-        "user_id": "1be1bf88-35e4-4d25-be4e-440df7cb58b3"
+        "body": "I really need a kerfuffle to go to bed sooner, Fornax!"
         }
 ###
 GET http://localhost:8080/api/chirps
@@ -58,7 +56,8 @@ POST http://localhost:8080/api/login
 
         {
         "email": "nickemp1996@gmail.com",
-        "password": "P@$$w0rd"
+        "password": "P@$$w0rd",
+        "expires_in_seconds": 1200
         }
 ###
 POST http://localhost:8080/api/login
