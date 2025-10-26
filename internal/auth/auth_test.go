@@ -101,3 +101,10 @@ func TestGetBearerToken(t *testing.T) {
 		t.Errorf("token string from JWT does not equal token string from http request! %v == %v", s, tokenString)
 	}
 }
+
+func TestMakeRefreshToken(t *testing.T) {
+	token, _ := MakeRefreshToken()
+	if len(token) != 64 {
+		t.Errorf("Error making refresh token")
+	}
+}

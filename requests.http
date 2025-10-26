@@ -1,6 +1,42 @@
+###
+POST http://localhost:8080/api/users
+        Content-Type: application/json
+
+        {
+        "email": "nickemp1996@gmail.com",
+        "password": "P@$$w0rd"
+        }
+###
+# @name login
+POST http://localhost:8080/api/login
+        Content-Type: application/json
+
+        {
+        "email": "nickemp1996@gmail.com",
+        "password": "P@$$w0rd"
+        }
+###
+@token = {{login.response.body.token}}
+@refreshToken = {{login.response.body.refresh_token}}
+POST http://localhost:8080/api/login
+        Content-Type: application/json
+
+        {
+        "email": "nickemp1996@gmail.com",
+        "password": "password"
+        }
+###
+POST http://localhost:8080/api/login
+        Content-Type: application/json
+
+        {
+        "email": "nickemp196@gmail.com",
+        "password": "P@$$w0rd"
+        }
+###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
-        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiJkNDQwMTVlNC04ZjAzLTRlZmYtOTg3ZC1kODRkMmY5NWM0MjIiLCJleHAiOjE3NjA0OTk0NDcsImlhdCI6MTc2MDQ5NTg0N30.NkLM_FOzWhbCNhcvoQNdBx_EvGz1wE31P-Jj11oTdgs
+        Authorization: {{token}}
         
         {
         "body": "I had something interesting for breakfast"
@@ -8,7 +44,7 @@ POST http://localhost:8080/api/chirps
 ###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
-        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiI0ZjQzN2EyNC04Y2YyLTQwMDQtYWNhNy1iYjg5NjkwNjI2MDIiLCJleHAiOjE3NjA0OTY2ODksImlhdCI6MTc2MDQ5MzA4OX0.AZxasTVE6iVi_EWbGM5HOVY9HChEFpICRLPKufQa3GE
+        Authorization: {{token}}
 
         {
         "body": "lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
@@ -16,7 +52,7 @@ POST http://localhost:8080/api/chirps
 ###
 POST http://localhost:8080/api/chirps
         Content-Type: application/json
-        Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiI0ZjQzN2EyNC04Y2YyLTQwMDQtYWNhNy1iYjg5NjkwNjI2MDIiLCJleHAiOjE3NjA0OTY2ODksImlhdCI6MTc2MDQ5MzA4OX0.AZxasTVE6iVi_EWbGM5HOVY9HChEFpICRLPKufQa3GE
+        Authorization: {{token}}
 
         {
         "body": "I hear Mastodon is better than Chirpy. sharbert I need to migrate",
@@ -43,38 +79,13 @@ GET http://localhost:8080/api/chirps
 GET http://localhost:8080/api/chirps/39b45b09-536f-4bd7-96ff-ab1c0128dc86
         Content-Type: application/json
 ###
-POST http://localhost:8080/api/users
+POST http://localhost:8080/api/refresh
         Content-Type: application/json
-
-        {
-        "email": "nickemp1996@gmail.com",
-        "password": "P@$$w0rd"
-        }
+        Authorization: {{refreshToken}}
 ###
-POST http://localhost:8080/api/login
-        Content-Type: application/json
-
-        {
-        "email": "nickemp1996@gmail.com",
-        "password": "P@$$w0rd",
-        "expires_in_seconds": 1200
-        }
-###
-POST http://localhost:8080/api/login
-        Content-Type: application/json
-
-        {
-        "email": "nickemp1996@gmail.com",
-        "password": "password"
-        }
-###
-POST http://localhost:8080/api/login
-        Content-Type: application/json
-
-        {
-        "email": "nickemp196@gmail.com",
-        "password": "P@$$w0rd"
-        }
+POST http://localhost:8080/api/revoke
+        Content-Type: text/html
+        Authorization: {{refreshToken}}
 ###
 POST http://localhost:8080/admin/reset
         Content-Type: text/html

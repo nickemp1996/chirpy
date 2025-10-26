@@ -21,11 +21,12 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 type Chirp struct {
@@ -129,11 +130,70 @@ func (cfg *apiConfig) addUser(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, 201, user)
 }
 
+func (cfg *apiConfig) updateUserLogin(w http.ResponseWriter, r *http.Request) {
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "token missing", err)
+		return
+	}
+
+	validUser, err := auth.ValidateJWT(tokenString, cfg.secret)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid token") {
+			respondWithError(w, 401, "Unauthorized", err)
+			return
+		}
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		// an error will be thrown if the JSON is invalid or has the wrong types
+		// any missing fields will simply have their values in the struct set to their zero value
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	userParams := database.UpdateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+		ID:             validUser,
+	}
+
+	dbUser, err := cfg.queries.UpdateUser(r.Context(), userParams)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	user := User{
+		ID:        dbUser.ID,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+		Email:     dbUser.Email,
+	}
+
+	respondWithJSON(w, 200, user)
+}
+
 func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email     string `json:"email"`
-		Password  string `json:"password"`
-		ExpiresIn *int   `json:"expires_inseconds,omitempty"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -166,25 +226,36 @@ func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiresIn := time.Duration(3600) * time.Second
-	if params.ExpiresIn != nil {
-		if *params.ExpiresIn <= 3600 {
-			expiresIn = time.Duration(*params.ExpiresIn) * time.Second
-		}
-	}
-
-	tokenString, err := auth.MakeJWT(dbUser.ID, cfg.secret, expiresIn)
+	tokenString, err := auth.MakeJWT(dbUser.ID, cfg.secret)
 	if err != nil {
 		respondWithError(w, 500, "internal error", err)
 		return
 	}
 
+	refreshToken, _ := auth.MakeRefreshToken()
+
+	addRefreshTokenParams := database.AddRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    dbUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+	}
+
+	dbRefreshToken, err := cfg.queries.AddRefreshToken(r.Context(), addRefreshTokenParams)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	fmt.Println("Token:", dbRefreshToken.Token)
+	fmt.Println("Expires at:", dbRefreshToken.ExpiresAt)
+
 	user := User{
-		ID:        dbUser.ID,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
-		Email:     dbUser.Email,
-		Token:     tokenString,
+		ID:           dbUser.ID,
+		CreatedAt:    dbUser.CreatedAt,
+		UpdatedAt:    dbUser.UpdatedAt,
+		Email:        dbUser.Email,
+		Token:        tokenString,
+		RefreshToken: dbRefreshToken.Token,
 	}
 
 	respondWithJSON(w, 200, user)
@@ -220,8 +291,6 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "internal error", err)
 		return
 	}
-
-	log.Printf("user id = %v\n", validUser)
 
 	if len(params.Body) > 140 {
 		respondWithError(w, 400, "chirp too long", nil)
@@ -300,6 +369,62 @@ func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, 200, chirp)
+}
+
+func (cfg *apiConfig) refresh(w http.ResponseWriter, r *http.Request) {
+	refreshTokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	dbRefreshToken, err := cfg.queries.GetUserFromRefreshToken(r.Context(), refreshTokenString)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, 401, "user does not exist", err)
+			return
+		} else {
+			respondWithError(w, 500, "internal error", err)
+			return
+		}
+	}
+
+	if dbRefreshToken.ExpiresAt.Compare(time.Now()) <= 0 || dbRefreshToken.RevokedAt.Valid {
+		respondWithError(w, 401, "user access not allowed", err)
+		return
+	}
+
+	tokenString, err := auth.MakeJWT(dbRefreshToken.UserID, cfg.secret)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	type parameters struct {
+		Token string `json:"token"`
+	}
+
+	response := parameters{
+		Token: tokenString,
+	}
+
+	respondWithJSON(w, 200, response)
+}
+
+func (cfg *apiConfig) revoke(w http.ResponseWriter, r *http.Request) {
+	refreshTokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	err = cfg.queries.RevokeRefreshToken(r.Context(), refreshTokenString)
+	if err != nil {
+		respondWithError(w, 500, "internal error", err)
+		return
+	}
+
+	w.WriteHeader(204)
 }
 
 func readinessEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +516,10 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.getChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.addUser)
+	mux.HandleFunc("PUT /api/users", apiCfg.updateUserLogin)
 	mux.HandleFunc("POST /api/login", apiCfg.userLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.refresh)
+	mux.HandleFunc("POST /api/revoke", apiCfg.revoke)
 
 	fmt.Println("Starting server on ", server.Addr)
 	err = server.ListenAndServe()
