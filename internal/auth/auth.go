@@ -94,6 +94,18 @@ func GetBearerToken(headers http.Header) (string, error) {
 	return tokenString, nil
 }
 
+func GetAPIKey(headers http.Header) (string, error) {
+	apiKey := headers.Get("Authorization")
+	if apiKey == "" {
+		return "", fmt.Errorf("no authorization header found")
+	}
+
+	polkaKey := strings.ReplaceAll(apiKey, "ApiKey", "")
+	polkaKey = strings.TrimSpace(polkaKey)
+
+	return polkaKey, nil
+}
+
 func MakeRefreshToken() (string, error) {
 	b := make([]byte, 32)
 	rand.Read(b)

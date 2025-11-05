@@ -18,6 +18,7 @@ POST http://localhost:8080/api/login
 ###
 @token = {{login.response.body.token}}
 @refreshToken = {{login.response.body.refresh_token}}
+@id = {{login.response.body.id}}
 POST http://localhost:8080/api/login
         Content-Type: application/json
 
@@ -89,3 +90,33 @@ POST http://localhost:8080/api/revoke
 ###
 POST http://localhost:8080/admin/reset
         Content-Type: text/html
+###
+POST http://localhost:8080/api/polka/webhooks
+        Content-Type: application/json
+
+        {
+        "event": "user.upgraded",
+        "data": {
+                "user_id": "{{id}}"
+                }
+        }
+###
+POST http://localhost:8080/api/polka/webhooks
+        Content-Type: application/json
+
+        {
+        "event": "wrong",
+        "data": {
+                "user_id": "{{id}}"
+                }
+        }
+###
+POST http://localhost:8080/api/polka/webhooks
+        Content-Type: application/json
+
+        {
+        "event": "user.upgraded",
+        "data": {
+                "user_id": "3311741c-680c-4546-99f3-fc9efac2036c"
+                }
+        }
