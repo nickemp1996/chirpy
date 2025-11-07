@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -291,7 +292,21 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.queries.GetChirps(r.Context())
+	s := r.URL.Query().Get("author_id")
+
+	var dbChirps []database.Chirp
+	var err error
+	if len(s) == 0 {
+		dbChirps, err = cfg.queries.GetChirps(r.Context())
+	} else {
+		userID, err1 := uuid.Parse(s)
+		if err1 != nil {
+			respondWithError(w, 500, "internal error", err)
+			return
+		}
+		dbChirps, err = cfg.queries.GetUserChirps(r.Context(), userID)
+	}
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, 404, "no chirps found", err)
@@ -300,6 +315,11 @@ func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, 500, "internal error", err)
 			return
 		}
+	}
+
+	s = r.URL.Query().Get("sort")
+	if strings.Compare(s, "desc") == 0 {
+		sort.Slice(dbChirps, func(i, j int) bool { return dbChirps[i].CreatedAt.After(dbChirps[j].CreatedAt) })
 	}
 
 	chirps := make([]Chirp, len(dbChirps))
